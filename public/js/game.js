@@ -6,11 +6,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const readyButton = document.getElementById('ready-button');
     const endTurnButton = document.getElementById('end-turn');
     const gameStatus = document.getElementById('game-status');
+    const playerNameDiv = document.getElementById('player-name');
     const userName = localStorage.getItem("userName");
     let selectedMonster = null;
     let gameStarted = false;
 
-    socket.emit('register', { name: userName });// Send the username to the server
+    // Display the username
+    playerNameDiv.textContent = `Player: ${userName}`;
+
+    // Send the username to the server
+    socket.emit('register', { name: userName });
 
     // Initialize the grid
     for (let i = 0; i < 100; i++) {
@@ -20,14 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
         grid.appendChild(cell);
     }
 
-   
-    readyButton.addEventListener('click', () => { // Ready button handler
+    // Ready button handler
+    readyButton.addEventListener('click', () => {
         socket.emit('player ready');
         readyButton.disabled = true; // Disable the button once clicked
     });
 
+    // Grid cell click handler
     grid.addEventListener('click', function(event) {
-        // Grid cell click handler
         if (!gameStarted) return; // Ignore clicks if the game hasn't started
 
         if (event.target.className === 'cell') {
