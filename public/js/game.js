@@ -87,6 +87,6 @@ function updateGridDisplay(grid) {
         const x = index % 10;
         const y = Math.floor(index / 10);
         const content = grid[y][x];
-        cell.textContent = content ? content.type[0].toUpperCase() : ''; // Show the first letter of type
+        cell.textContent = content ? content.type[0].toUpperCase() : '';
     });
 }

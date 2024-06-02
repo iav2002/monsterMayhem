@@ -16,14 +16,16 @@ const gameState = {
     playerOrder: [],
     monsterCounts: {},
     readyCount: 0,  // Count of players who are ready
-    totalPlayers: 3 // Set the total number of players required to start the game
+    totalPlayers: 3 // Number of players to star the game
 };
+
+let isUpdating = false; // Concurrency lock for atomic operations, helped used from videos and web pages like https://spin.atomicobject.com/javascript-concurrency/, https://extendscript.docsforadobe.dev/external-communication/socket-object.html
 
 // Initialize or update player data
 function initPlayer(socketId) {
     players[socketId] = {
         id: socketId,
-        edge: Object.keys(players).length % 4, // Simple method to assign edges
+        edge: Object.keys(players).length % 4, // Checking edges
         ready: false
     };
     gameState.monsterCounts[socketId] = 0; // Initialize monster count
@@ -41,24 +43,45 @@ function updatePlayerOrder() {
 
 // Handle placement of monsters
 function handlePlacement(playerId, type, position) {
+    if (isUpdating) return; // Prevent simultaneous updates  https://www.youtube.com/watch?v=phs5V6qk2xk reference
+
+    isUpdating = true; // Set the lock
+
+    // Perform the placement operation
     gameState.grid[position.y][position.x] = { type, owner: playerId };
     gameState.monsterCounts[playerId]++;
-    io.emit('update grid', gameState.grid); // Update all clients
-    checkGameEndConditions(); // Check end game conditions after placement
+
+    // Broadcast the update to all clients
+    io.emit('update grid', gameState.grid);
+
+    // Check for end game conditions
+    checkGameEndConditions();
+
+    isUpdating = false; // Release the lock
 }
 
 // Handle movement of monsters (simplified)
 function handleMovement(playerId, from, to) {
+    if (isUpdating) return; // Prevent simultaneous updates
+
+    isUpdating = true; // Set the lock
+
     const movingMonster = gameState.grid[from.y][from.x];
-    if (!movingMonster || movingMonster.owner !== playerId) return; // No monster or not owned by player
-    
+    if (!movingMonster || movingMonster.owner !== playerId) {
+        isUpdating = false;
+        return; // No monster or not owned by player
+    }
+
     // Check if the move is valid (straight line or two squares diagonally)
     const dx = Math.abs(from.x - to.x);
     const dy = Math.abs(from.y - to.y);
     const distanceValid = (dx === 0 || dy === 0 || (dx <= 2 && dy <= 2 && dx === dy));
-    
-    if (!distanceValid) return; // Invalid move
-    
+
+    if (!distanceValid) {
+        isUpdating = false;
+        return; // Invalid move
+    }
+
     // Check for blocking monsters (simplified check assuming no blocking)
     if (gameState.grid[to.y][to.x] && gameState.grid[to.y][to.x].owner !== playerId) {
         resolveConflict(to, movingMonster);
@@ -66,9 +89,11 @@ function handleMovement(playerId, from, to) {
         gameState.grid[to.y][to.x] = movingMonster; // Move monster
         gameState.grid[from.y][from.x] = null; // Clear old position
     }
-    
+
     io.emit('update grid', gameState.grid); // Update all clients
     checkGameEndConditions(); // Check end game conditions after movement
+
+    isUpdating = false; // Release the lock
 }
 
 function resolveConflict(position, incomingMonster) {
@@ -94,19 +119,25 @@ function resolveConflict(position, incomingMonster) {
             gameState.monsterCounts[incomingMonster.owner]++;
         }
     }
-    console.log(`Monster counts: ${JSON.stringify(gameState.monsterCounts)}`); //for debugging, now working
+    console.log(`Monster counts: ${JSON.stringify(gameState.monsterCounts)}`); // Log monster counts for debugging
     checkGameEndConditions(); // Check game end conditions after resolving conflict
 }
 
 // Handle end turn
 function handleEndTurn(playerId) {
+    if (isUpdating) return; // Prevent simultaneous updates
+
+    isUpdating = true; // Set the lock
+
     console.log(`${players[playerId].name} ended their turn.`);
     updatePlayerOrder(); // Rotate to the next player
     checkGameEndConditions();
+
+    isUpdating = false; // Release the lock
 }
 
 function checkGameEndConditions() {
-    // Check if any player has 10 or more monsters removed
+    // Conditinoal  10 or more monsters removed
     for (let playerId in gameState.monsterCounts) {
         if (gameState.monsterCounts[playerId] >= 10) {
             io.emit('game over', `Player ${players[playerId].name} loses`);
@@ -132,11 +163,17 @@ io.on('connection', (socket) => {
     });
 
     socket.on('player ready', () => {
+        if (isUpdating) return; // Prevent simultaneous updates
+
+        isUpdating = true; // Set the lock
+
         players[socket.id].ready = true;
         gameState.readyCount++;
         if (gameState.readyCount === gameState.totalPlayers) {
             io.emit('game started');
         }
+
+        isUpdating = false; // Release the lock
     });
 
     socket.on('place monster', (type, position) => {
@@ -152,10 +189,16 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        if (isUpdating) return; // Prevent simultaneous updates
+
+        isUpdating = true; // Set the lock
+
         console.log(`${players[socket.id].name} disconnected`);
         delete players[socket.id];
         delete gameState.monsterCounts[socket.id];
         updatePlayerOrder();
+
+        isUpdating = false; // Release the lock
     });
 });
 
