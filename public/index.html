@@ -4,10 +4,31 @@
     <meta charset="UTF-8">
     <title>Monster Mayhem</title>
     <link rel="stylesheet" href="css/style.css">
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="js/game.js" defer></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&display=swap">
 </head>
 <body>
+    <div id="game-header">
+        <h1 data-text="Welcome to Monster Mayhem!">Welcome to Monster Mayhem!</h1>
+        <div id="player-name"></div>
+    </div>
     <div id="game-grid"></div>
+    <select id="monster-select">
+        <option value="vampire">Vampire</option>
+        <option value="werewolf">Werewolf</option>
+        <option value="ghost">Ghost</option>
+    </select>
+    <button id="ready-button">Ready</button>
+    <button id="end-turn" disabled>End Turn</button>
+    <div id="game-status">Waiting for game to start...</div>
+    <script>
+        const userName = prompt("Please enter your name:", "");
+        if (userName) {
+            localStorage.setItem("userName", userName);
+        } else {
+            localStorage.setItem("userName", "Player " + Math.floor(Math.random() * 1000));
+        }
+    </script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/game.js" defer></script>
 </body>
 </html>
